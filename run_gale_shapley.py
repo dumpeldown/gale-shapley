@@ -1,70 +1,76 @@
 import os
+from itertools import islice
+
+NUM_OF_PREFERENCES_TO_USE = 10
+NUM_OF_PERSONS = 170
+NUM_TESTS = 1
+
+def take(n, iterable):
+    """Return the first n items of the iterable as a list."""
+    return list(islice(iterable, n))
+
 
 # Erweiterte Funktion zum Ausführen von Tests
-def run_tests(test_count):
-    for i in range(1, test_count + 1):
-        # Dateien dynamisch laden
-        person_csv = f"person_preferences_{i}.csv"
-        location_csv = f"location_capacities_{i}.csv"
-        output_csv = f"location_assignments_{i}.csv"
+def run(test_count=0, iteration=0):
+    # Dateinamen abhängig von test_count setzen
+    if test_count == 0:
+        runs = [(None, "person_preferences.csv", "location_capacities.csv", "location_assignments.csv")]
+    else:
+        runs = [
+            (i, f"tests/person_preferences_{i}.csv", f"tests/location_capacities_{i}.csv", f"tests/location_assignments_{i}.csv")
+            for i in range(1, test_count + 1)
+        ]
 
+    for run_id, person_csv, location_csv, output_csv in runs:
         # Überprüfen, ob Dateien existieren
         if not os.path.exists(person_csv) or not os.path.exists(location_csv):
-            print(f"Testdateien für Test {i} fehlen!")
+            print(f"Dateien fehlen: '{person_csv}' oder '{location_csv}'")
             continue
 
         # Daten laden
         person_preferences, location_capacities = load_data(person_csv, location_csv)
+        person_preferences = {person: take(NUM_OF_PREFERENCES_TO_USE, preferences) for person, preferences in person_preferences.items()}
         duplicates = check_duplicate_preferences(person_csv)
         
         if duplicates:
             print(f"Warnung: {len(duplicates)} Personen haben doppelte Präferenzen.")
             for person, preferences in duplicates.items():
                 print(f"  - {person}: Präferenzen: {preferences}")
-            quit()
+            return
+
         # Zuordnung durchführen
         assignments = gale_shapley(person_preferences, location_capacities)
 
         # Ergebnisse speichern
-        save_results(assignments, output_csv)
+        save_results(assignments, person_preferences, output_csv)
         
         # Prioritätsanalyse
         priority_percentages = analyze_priorities(assignments, person_preferences)
-        print(f"Prioritätsanalyse für Test {i}:")
+        if run_id is None:
+            print("Prioritätsanalyse für den regulären Lauf:")
+        else:
+            print(f"Prioritätsanalyse für Test {run_id}:")
+
         for priority, percentage in priority_percentages.items():
-            print(f"  Priorität {priority}: {percentage:.2f}%")
+            print(f"  Priorität {priority}: {percentage:.2f}% -- Kumuliert: {sum(list(priority_percentages.values())[:priority]):.2f}%")
+        print(f"Prozent der Personen ohne Zuweisung: {100 - sum(list(priority_percentages.values())):.2f}%")
         
-        print(f"Test {i} abgeschlossen. Ergebnisse gespeichert in '{output_csv}'.")
+        if run_id is None:
+            print(f"Run nach {i} Iterationen abgeschlossen. Ergebnisse gespeichert in '{output_csv}'.")
+        else:
+            print(f"Test {run_id} nach {i} Iteration abgeschlossen. Ergebnisse gespeichert in '{output_csv}'.")
         print("---------------------------------------------------------------------------------------")
-        
-        
-        
-        
-def calculate_no_preference_assignments(person_preferences, assignments):
-    unassigned_count = 0
-
-    for person, preferences in person_preferences.items():
-        # Prüfen, ob die Person in den Ergebnissen zu einer ihrer Präferenzen zugeordnet wurde
-        assigned = any(
-            person in persons and location in preferences
-            for location, persons in assignments.items()
-        )
-        if not assigned:
-            unassigned_count += 1
-
-    return unassigned_count
-    
-    
+    return priority_percentages
 def analyze_priorities(assignments, person_preferences):
     # Zähle die Häufigkeiten der Prioritäten
     priority_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}
-    total_persons = sum(len(persons) for persons in assignments.values())
+    priority_counts = {k: priority_counts[k] for k in list(priority_counts)[:NUM_OF_PREFERENCES_TO_USE]}
 
     for location, assigned_persons in assignments.items():
         for person in assigned_persons:
             if person in person_preferences:
                 # Finde die Priorität, die für diese Zuordnung verwendet wurde
-                preferences = person_preferences[person]
+                preferences = (person_preferences[person])
                 for priority, preferred_location in enumerate(preferences, start=1):
                     if preferred_location == location:
                         priority_counts[priority] += 1
@@ -72,7 +78,7 @@ def analyze_priorities(assignments, person_preferences):
 
     # Berechne die Prozentwerte basierend auf der Gesamtzahl der Personen
     priority_percentages = {
-        priority: (count / total_persons) * 100 for priority, count in priority_counts.items()
+        priority: (count / NUM_OF_PERSONS) * 100 for priority, count in priority_counts.items()
     }
 
     return priority_percentages
@@ -182,48 +188,43 @@ def load_data(person_csv, location_csv):
     return person_preferences, location_capacities
 
 # Ergebnisse speichern
-def save_results(results, output_csv):
+def save_results(results, person_preferences, output_csv):
     result_rows = []
     for location, persons in results.items():
         for person in persons:
-            result_rows.append({"Location": location, "Person": person})
+            # Finde die Priorität, nach der die Person dieser Location zugeordnet wurde
+            preferences = person_preferences.get(person, [])
+            priority = next((index + 1 for index, pref in enumerate(preferences) if pref == location), None)
+            result_rows.append({"Location": location, "Person": person, "Prio": priority})
+    
     results_df = pd.DataFrame(result_rows)
     results_df.to_csv(output_csv, index=False)
 
+def optimize_for_cumulative_perct_in_preference_num(perct,pref_num, stats):
+    if pref_num == 0:
+        return sum(list(stats.values())) >= perct
+    else:
+        return sum(list(stats.values())[:pref_num]) >= perct
+
+def check_new_highest(stats, highest_percts):
+    for priority, percentage in stats.items():
+        if priority not in highest_percts or sum(list(stats.values())[:priority]) > highest_percts[priority]:
+            highest_percts[priority] = sum(list(stats.values())[:priority])
+    return highest_percts
+
+
 # Main-Skript
 if __name__ == "__main__":
-    # Anzahl der Tests
-    TEST_COUNT = 5
-
-    # Tests ausführen
-    run_tests(TEST_COUNT)
-    '''
-    # Dateinamen
-    person_csv = "person_preferences.csv"  # Beispiel: "Person,Preference1,Preference2,Preference3,Preference4,Preference5"
-    location_csv = "location_capacities.csv"  # Beispiel: "Location,Capacity"
-    output_csv = "location_assignments.csv"
-
-    # Daten laden
-    person_preferences, location_capacities = load_data(person_csv, location_csv)
-    duplicates = check_duplicate_preferences(person_csv)
-    
-    if duplicates:
-        print(f"Warnung: {len(duplicates)} Personen haben doppelte Präferenzen.")
-        for person, preferences in duplicates.items():
-            print(f"  - {person}: Präferenzen: {preferences}")
-        quit()
-
-    # Zuordnung durchführen
-    assignments = gale_shapley(person_preferences, location_capacities)
-
-    # Ergebnisse speichern
-    save_results(assignments, output_csv)
-    # Prioritätsanalyse
-    print("------------------------------------------")
-    priority_percentages = analyze_priorities(assignments, person_preferences)
-    print(f"Prioritätsanalyse:")
-    for priority, percentage in priority_percentages.items():
-        print(f"  Priorität {priority}: {percentage:.2f}%")
-    
-    print(f"Die Zuordnungen wurden in '{output_csv}' gespeichert.")
-    '''
+    # Für n Iterationen laufen lassen, um auf eine bestimmte Eigenschaft zu optimieren
+    highest_percts = {}
+    for i in range(1, 10000):
+        print(f"Iteration {i}:")
+        stats = run(NUM_TESTS, i)
+        
+        highest_percts = check_new_highest(stats, highest_percts) 
+        print(f"Höchste Prozentwerte: {highest_percts}")
+        # 1. Parameter: Prozentwert, 2. Parameter: Prioritätsnummer, 3. Parameter: Statistik Daten
+        # Setze Prioritätsnummer auf 0, um auf eine hohe Gesamtzuweisung zu optimieren
+        if optimize_for_cumulative_perct_in_preference_num(88,5,stats)\
+            and optimize_for_cumulative_perct_in_preference_num(100,10,stats):
+            break

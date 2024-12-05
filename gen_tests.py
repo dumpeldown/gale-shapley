@@ -6,12 +6,17 @@ import random
 import pandas as pd
 import random
 
+
+NUM_TESTS = 1
+PROBABILITY_FOR_PREFERRED_LOC = 0.7
+NUM_OF_PREFERRED_LOCS = 20
+
 def generate_balanced_test_data_with_10_prios(num_persons, num_locations, max_capacity, file_index):
     # Generiere Personen
     persons = [f"Person{i}" for i in range(1, num_persons + 1)]
     # Locations: Erste 20 bevorzugt
-    preferred_locations = [f"Location{j}" for j in range(1, 21)]
-    other_locations = [f"Location{j}" for j in range(21, num_locations + 1)]
+    preferred_locations = [f"Location{j}" for j in range(1, NUM_OF_PREFERRED_LOCS)]
+    other_locations = [f"Location{j}" for j in range(NUM_OF_PREFERRED_LOCS, num_locations + 1)]
     locations = preferred_locations + other_locations
 
     preferences_data = []
@@ -19,14 +24,14 @@ def generate_balanced_test_data_with_10_prios(num_persons, num_locations, max_ca
         # Höhere Wahrscheinlichkeit für bevorzugte Locations in den ersten Prioritäten
         choices = []
         for i in range(10):  # Für alle 10 Prioritäten
-            if random.random() < 0.7:  # 70% Wahrscheinlichkeit für bevorzugte Locations
+            if random.random() < PROBABILITY_FOR_PREFERRED_LOC:  # 70% Wahrscheinlichkeit für bevorzugte Locations
                 choice = random.choice(preferred_locations)
             else:
                 choice = random.choice(other_locations)
             
             # Verhindere doppelte Einträge in den Präferenzen
             while choice in choices:
-                if random.random() < 0.7:
+                if random.random() < PROBABILITY_FOR_PREFERRED_LOC:
                     choice = random.choice(preferred_locations)
                 else:
                     choice = random.choice(other_locations)
@@ -38,7 +43,7 @@ def generate_balanced_test_data_with_10_prios(num_persons, num_locations, max_ca
         preferences_data.append(preferences_row)
     
     preferences_df = pd.DataFrame(preferences_data)
-    preferences_df.to_csv(f"person_preferences_{file_index}.csv", index=False)
+    preferences_df.to_csv(f"tests/person_preferences_{file_index}.csv", index=False)
 
     # Generiere Kapazitäten der Locations
     location_data = []
@@ -47,14 +52,8 @@ def generate_balanced_test_data_with_10_prios(num_persons, num_locations, max_ca
         location_data.append({"Location": location, "Capacity": capacity})
     
     locations_df = pd.DataFrame(location_data)
-    locations_df.to_csv(f"location_capacities_{file_index}.csv", index=False)
+    locations_df.to_csv(f"tests/location_capacities_{file_index}.csv", index=False)
 
-
-
-# Generiere 5 Testdatensätze
-for i in range(1, 6):
+# Generiere NUM_TESTS Testdatensätze
+for i in range(1, NUM_TESTS+1):
     generate_balanced_test_data_with_10_prios(num_persons=170, num_locations=165, max_capacity=3, file_index=i)
-
-# Ausgabe der generierten Dateien
-test_files = [f"person_preferences_{i}.csv" for i in range(1, 6)] + [f"location_capacities_{i}.csv" for i in range(1, 6)]
-test_files
