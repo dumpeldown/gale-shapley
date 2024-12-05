@@ -23,7 +23,7 @@ Comment out the line `run_tests()` to stop running the tests.
 Change the production input files and comment in the relevant lines to run the algorithm on the production data.
 
 ## Output
-The output of the algorithm is the list of pairs of the form (with headers):
+The output of the algorithm is the list of pairs. It will be saved in a csv called `location_assignments.csv` of the form (with headers):
 
 |Location   |Person   |
 |-----------|---------|
@@ -38,8 +38,9 @@ The output of the algorithm is the list of pairs of the form (with headers):
 **Not every person may be assigned a location. The remaining people are not assigned any location!**
 
 See the output of the script for info of not assigned people and remaining capacity of locations.
+This is an extract of a possible output in the console.
 
-    Warnung: 13 Personen konnten keine Location aus ihren Präferenzen zugewiesen werden.
+    Warnung: 2 Personen konnten keine Location aus ihren Präferenzen zugewiesen werden.
     - Person169: Präferenzen: ['Location17', 'Location9', 'Location19', 'Location91', 'Location4', 'Location15', 'Location1', 'Location20', 'Location8']
     - Person142: Präferenzen: ['Location11', 'Location3', 'Location1', 'Location20', 'Location6', 'Location9', 'Location4', 'Location15', 'Location12']
 
