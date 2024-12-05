@@ -196,12 +196,12 @@ if __name__ == "__main__":
     TEST_COUNT = 5
 
     # Tests ausführen
-    #run_tests(TEST_COUNT)
-    
+    run_tests(TEST_COUNT)
+    '''
     # Dateinamen
-    person_csv = "person_preferences_1.csv"  # Beispiel: "Person,Preference1,Preference2,Preference3,Preference4,Preference5"
-    location_csv = "location_capacities_1.csv"  # Beispiel: "Location,Capacity"
-    output_csv = "location_assignments_x.csv"
+    person_csv = "person_preferences.csv"  # Beispiel: "Person,Preference1,Preference2,Preference3,Preference4,Preference5"
+    location_csv = "location_capacities.csv"  # Beispiel: "Location,Capacity"
+    output_csv = "location_assignments.csv"
 
     # Daten laden
     person_preferences, location_capacities = load_data(person_csv, location_csv)
@@ -226,3 +226,4 @@ if __name__ == "__main__":
         print(f"  Priorität {priority}: {percentage:.2f}%")
     
     print(f"Die Zuordnungen wurden in '{output_csv}' gespeichert.")
+    '''
