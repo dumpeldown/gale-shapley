@@ -1,17 +1,33 @@
 import os
 from itertools import islice
 
-NUM_OF_PREFERENCES_TO_USE = 10
-NUM_OF_PERSONS = 170
+NUM_OF_PREFERENCES_TO_USE = 5
+NUM_OF_PERSONS = 160
 NUM_TESTS = 1
+ITERATION_RUN = 100
+REQUIRE_INPUT = False
+OUT_TO_CONSOLE = False
+OUT_TO_LOG = True
 
 def take(n, iterable):
     """Return the first n items of the iterable as a list."""
     return list(islice(iterable, n))
 
+import logging
+
+handlers = []
+if OUT_TO_LOG:
+    handlers.append(logging.FileHandler("out.log"))
+if OUT_TO_CONSOLE:
+    handlers.append(logging.StreamHandler())
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=handlers
+)
 
 # Erweiterte Funktion zum Ausführen von Tests
-def run(test_count=0, iteration=0):
+def run(test_count=0, iteration=0, require_input=False):
     # Dateinamen abhängig von test_count setzen
     if test_count == 0:
         runs = [(None, "person_preferences.csv", "location_capacities.csv", "location_assignments.csv")]
@@ -24,7 +40,7 @@ def run(test_count=0, iteration=0):
     for run_id, person_csv, location_csv, output_csv in runs:
         # Überprüfen, ob Dateien existieren
         if not os.path.exists(person_csv) or not os.path.exists(location_csv):
-            print(f"Dateien fehlen: '{person_csv}' oder '{location_csv}'")
+            logging.info(f"Dateien fehlen: '{person_csv}' oder '{location_csv}'")
             continue
 
         # Daten laden
@@ -33,37 +49,38 @@ def run(test_count=0, iteration=0):
         duplicates = check_duplicate_preferences(person_csv)
         
         if duplicates:
-            print(f"Warnung: {len(duplicates)} Personen haben doppelte Präferenzen.")
+            logging.info(f"Warnung: {len(duplicates)} Personen haben doppelte Präferenzen.")
             for person, preferences in duplicates.items():
-                print(f"  - {person}: Präferenzen: {preferences}")
+                logging.info(f"  - {person}: Präferenzen: {preferences}")
             return
 
         # Zuordnung durchführen
-        assignments = gale_shapley(person_preferences, location_capacities)
+        assignments = gale_shapley(person_preferences, location_capacities, require_input=require_input)
 
         # Ergebnisse speichern
         save_results(assignments, person_preferences, output_csv)
         
         # Prioritätsanalyse
-        priority_percentages = analyze_priorities(assignments, person_preferences)
+        priority_percentages, priority_counts = analyze_priorities(assignments, person_preferences)
         if run_id is None:
-            print("Prioritätsanalyse für den regulären Lauf:")
+            logging.info("Prioritätsanalyse für den regulären Lauf:")
         else:
-            print(f"Prioritätsanalyse für Test {run_id}:")
+            logging.info(f"Prioritätsanalyse für Test {run_id}:")
 
         for priority, percentage in priority_percentages.items():
-            print(f"  Priorität {priority}: {percentage:.2f}% -- Kumuliert: {sum(list(priority_percentages.values())[:priority]):.2f}%")
-        print(f"Prozent der Personen ohne Zuweisung: {100 - sum(list(priority_percentages.values())):.2f}%")
+            logging.info(f"  Priorität {priority}: {percentage:.2f}% -- Kumuliert: {sum(list(priority_percentages.values())[:priority]):.2f}% -- Absolut: {priority_counts[priority]}")
+        logging.info(f"Prozent der Personen ohne Zuweisung: {100 - sum(list(priority_percentages.values())):.2f}%")
         
         if run_id is None:
-            print(f"Run nach {i} Iterationen abgeschlossen. Ergebnisse gespeichert in '{output_csv}'.")
+            logging.info(f"Run nach {i} Iterationen abgeschlossen. Ergebnisse gespeichert in '{output_csv}'.")
         else:
-            print(f"Test {run_id} nach {i} Iteration abgeschlossen. Ergebnisse gespeichert in '{output_csv}'.")
-        print("---------------------------------------------------------------------------------------")
+            logging.info(f"Test {run_id} nach {i} Iteration abgeschlossen. Ergebnisse gespeichert in '{output_csv}'.")
+        logging.info("---------------------------------------------------------------------------------------")
     return priority_percentages
+
 def analyze_priorities(assignments, person_preferences):
     # Zähle die Häufigkeiten der Prioritäten
-    priority_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}
+    priority_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 0:0}
     priority_counts = {k: priority_counts[k] for k in list(priority_counts)[:NUM_OF_PREFERENCES_TO_USE]}
 
     for location, assigned_persons in assignments.items():
@@ -77,21 +94,26 @@ def analyze_priorities(assignments, person_preferences):
                         break
 
     # Berechne die Prozentwerte basierend auf der Gesamtzahl der Personen
+    priority_counts[0] = NUM_OF_PERSONS - sum(priority_counts.values())
     priority_percentages = {
         priority: (count / NUM_OF_PERSONS) * 100 for priority, count in priority_counts.items()
     }
-
-    return priority_percentages
+    
+    return priority_percentages, priority_counts
 
 
 import pandas as pd
 from collections import defaultdict
 import random
 
-def gale_shapley(person_preferences, location_capacities):
+def gale_shapley(person_preferences, location_capacities, require_input=False):
     # Personen und Locations initialisieren
     free_persons = list(person_preferences.keys())
     random.shuffle(free_persons)
+    logging.info("Personen wurden randomisiert.")
+    logging.info("Es wird in der Reihenfolge gepicked:")
+    for seed, person in enumerate(free_persons):
+        logging.info(f"{seed+1}. {person}")
     location_matches = defaultdict(list)
     remaining_slots = location_capacities.copy()
     
@@ -101,48 +123,45 @@ def gale_shapley(person_preferences, location_capacities):
     # Personen, die keine Zuweisung bekommen können
     unassigned_persons = []
 
+    # Solange noch nicht alle Personen zugewiesen sind
     while free_persons:
+        if require_input:
+            # Auf user input warten, bis mit der nächsten Person fortgefahren wird
+            input("Drücke Enter, um mit der nächsten Person fortzufahren...")
+            
         person = free_persons.pop(0)  # Nimm eine freie Person
-        preferences = person_preferences[person]
-        current_choice_index = person_next_proposals[person]
+        logging.info(f"Suche jetzt Zuweisung für: {person}")
+        preferences = person_preferences[person] # Präferenzen der Person
+        current_choice_index = person_next_proposals[person] # Nummer der Priorität
+        logging.info(f"Aktuell wird Prio {current_choice_index+1} geprüft")
 
+        # Wenn noch nicht für alle Prios geprüft wurde
         if current_choice_index < len(preferences):
-            location = preferences[current_choice_index]  # Nächste Präferenz
-            person_next_proposals[person] += 1
+            location = preferences[current_choice_index]  # Es wird versucht, die Location an Prio x zu bekommen
+            logging.info(f"Versuche {location} zu bekommen")
+            person_next_proposals[person] += 1 
 
+            # Überprüfen, ob die Location noch Kapazitäten hat
             if len(location_matches[location]) < remaining_slots[location]:
                 # Platz verfügbar
+                logging.info("Platz verfügbar")
                 location_matches[location].append(person)
+                logging.info(f"Zuweisung: {location} -> {person}")
+            # Wenn die Location voll ist
             else:
-                # Kein Platz, finde die "schlechteste" Person auf Basis der Präferenz
-                def get_preference_index(p):
-                    try:
-                        return preferences.index(p)
-                    except ValueError:
-                        return float('inf')  # Unendlich, wenn die Person nicht in der Liste ist
-
-                worst_person = max(
-                    location_matches[location],
-                    key=lambda p: get_preference_index(p)
-                )
-                
-                # Tausche, falls die aktuelle Person eine höhere Priorität hat
-                if get_preference_index(person) < get_preference_index(worst_person):
-                    location_matches[location].remove(worst_person)
-                    location_matches[location].append(person)
-                    free_persons.append(worst_person)
-                else:
-                    free_persons.append(person)
+                logging.info("Platz ist bereits vergeben.")
+                free_persons.append(person)
         else:
             # Keine Präferenzen mehr übrig -> keine Zuweisung möglich
+            logging.info(f"Alle Preferenzen von {person} wurden ausgeschöpft, aber keine Zuweisung gefunden.")
             unassigned_persons.append(person)
 
     # Ausgabe einer Warnung für alle nicht zugewiesenen Personen
     if unassigned_persons:
-        print(f"Warnung: {len(unassigned_persons)} Personen konnten keine Location aus ihren Präferenzen zugewiesen werden.")
+        logging.info(f"Warnung: {len(unassigned_persons)} Personen konnten keine Location aus ihren Präferenzen zugewiesen werden.")
         for unassigned_person in unassigned_persons:
             preferences = person_preferences[unassigned_person]
-            print(f"  - {unassigned_person}: Präferenzen: {preferences}")
+            logging.info(f"  - {unassigned_person}: Präferenzen: {preferences}")
 
     # Überprüfung auf freie Kapazitäten
     unused_capacities = {
@@ -151,9 +170,9 @@ def gale_shapley(person_preferences, location_capacities):
         if len(location_matches[location]) < remaining_slots[location]
     }
     if unused_capacities:
-        print("\nLocations mit verbleibender Kapazität:")
+        logging.info("\nLocations mit verbleibender Kapazität:")
         for location, remaining in unused_capacities.items():
-            print(f"  - {location}: {remaining} Plätze frei")
+            logging.info(f"  - {location}: {remaining} Plätze frei")
 
     return location_matches
 
@@ -217,14 +236,15 @@ def check_new_highest(stats, highest_percts):
 if __name__ == "__main__":
     # Für n Iterationen laufen lassen, um auf eine bestimmte Eigenschaft zu optimieren
     highest_percts = {}
-    for i in range(1, 10000):
+    for i in range(1, ITERATION_RUN+1):
+        logging.info(f"Iteration {i}:")
         print(f"Iteration {i}:")
-        stats = run(NUM_TESTS, i)
+        stats = run(NUM_TESTS, i, require_input=REQUIRE_INPUT)
         
         highest_percts = check_new_highest(stats, highest_percts) 
-        print(f"Höchste Prozentwerte: {highest_percts}")
+        logging.info(f"Höchste Prozentwerte: {[ '%.5f' % elem for elem in highest_percts.values() ]}")
+        print(f"Höchste Prozentwerte: {[ '%.5f' % elem for elem in highest_percts.values() ]}")
         # 1. Parameter: Prozentwert, 2. Parameter: Prioritätsnummer, 3. Parameter: Statistik Daten
         # Setze Prioritätsnummer auf 0, um auf eine hohe Gesamtzuweisung zu optimieren
-        if optimize_for_cumulative_perct_in_preference_num(88,5,stats)\
-            and optimize_for_cumulative_perct_in_preference_num(100,10,stats):
-            break
+        #if optimize_for_cumulative_perct_in_preference_num(100,0,stats):
+        #    break
