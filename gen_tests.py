@@ -8,13 +8,13 @@ import random
 
 
 NUM_TESTS = 1
-PROBABILITY_FOR_PREFERRED_LOC = 0.7
-NUM_OF_PREFERRED_LOCS = 20
+PROBABILITY_FOR_PREFERRED_LOC = 0
+NUM_OF_PREFERRED_LOCS = 0
+NUM_WEIGHTED_PREFERENCES = 0
 
 def generate_balanced_test_data_with_10_prios(num_persons, num_locations, max_capacity, file_index):
     # Generiere Personen
     persons = [f"Person{i}" for i in range(1, num_persons + 1)]
-    # Locations: Erste 20 bevorzugt
     preferred_locations = [f"Location{j}" for j in range(1, NUM_OF_PREFERRED_LOCS)]
     other_locations = [f"Location{j}" for j in range(NUM_OF_PREFERRED_LOCS, num_locations + 1)]
     locations = preferred_locations + other_locations
@@ -23,12 +23,14 @@ def generate_balanced_test_data_with_10_prios(num_persons, num_locations, max_ca
     for person in persons:
         # Höhere Wahrscheinlichkeit für bevorzugte Locations in den ersten Prioritäten
         choices = []
-        for i in range(10):  # Für alle 10 Prioritäten
-            if random.random() < PROBABILITY_FOR_PREFERRED_LOC:  # 70% Wahrscheinlichkeit für bevorzugte Locations
-                choice = random.choice(preferred_locations)
+        for i in range(10):  # Generiere 10 Prioritäten
+            if i < NUM_WEIGHTED_PREFERENCES:
+                if random.random() < PROBABILITY_FOR_PREFERRED_LOC:  # Wahrscheinlichkeit für bevorzugte Locations
+                    choice = random.choice(preferred_locations)
+                else:
+                    choice = random.choice(other_locations)
             else:
-                choice = random.choice(other_locations)
-            
+                choice = random.choice(locations)
             # Verhindere doppelte Einträge in den Präferenzen
             while choice in choices:
                 if random.random() < PROBABILITY_FOR_PREFERRED_LOC:
@@ -56,4 +58,4 @@ def generate_balanced_test_data_with_10_prios(num_persons, num_locations, max_ca
 
 # Generiere NUM_TESTS Testdatensätze
 for i in range(1, NUM_TESTS+1):
-    generate_balanced_test_data_with_10_prios(num_persons=170, num_locations=165, max_capacity=3, file_index=i)
+    generate_balanced_test_data_with_10_prios(num_persons=160, num_locations=165, max_capacity=3, file_index=i)
