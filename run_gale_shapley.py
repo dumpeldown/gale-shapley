@@ -3,10 +3,10 @@ from itertools import islice
 
 NUM_OF_PREFERENCES_TO_USE = 5
 NUM_OF_PERSONS = 160
-NUM_TESTS = 1
-ITERATION_RUN = 100
-REQUIRE_INPUT = False
-OUT_TO_CONSOLE = False
+NUM_TESTS = 0
+ITERATION_RUN = 1
+REQUIRE_INPUT = True
+OUT_TO_CONSOLE = True
 OUT_TO_LOG = True
 
 def take(n, iterable):
